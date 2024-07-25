@@ -6,11 +6,12 @@ import common from '../../../lib/common/common.js';
 import { ZZZPlugin } from '../lib/plugin.js';
 import { rulePrefix } from '../lib/common.js';
 import { atlasToName } from '../lib/convert/char.js';
-import { imageResourcesPath } from '../lib/path.js';
+import { imageResourcesPath, configPath } from '../lib/path.js';
 import _ from 'lodash';
 import settings from '../lib/settings.js';
 
 const ZZZ_GUIDES_PATH = path.join(imageResourcesPath, 'guides');
+const ZZZ_GUIDES_CONFIG_PATH = path.join(configPath, 'guide.yaml');
 
 export class Guide extends ZZZPlugin {
   constructor() {
@@ -21,9 +22,21 @@ export class Guide extends ZZZPlugin {
       priority: _.get(settings.getConfig('priority'), 'guide', 70),
       rule: [
         {
-          reg: `${rulePrefix}(更新)?\\S+攻略(\\d+)?$`,
-          fnc: 'Guide',
+          reg: `^${rulePrefix}攻略(说明|帮助)$`,
+          fnc: 'GuideHelp'
         },
+        {
+          reg: `^${rulePrefix}设置默认攻略(\\d+|all)$`,
+          fnc: 'SetDefaultGuide'
+        },
+        {
+          reg: `^${rulePrefix}设置所有攻略显示个数(\\d+)$`,
+          fnc: 'SetMaxForwardGuide'
+        },
+        {
+          reg: `${rulePrefix}(更新)?\\S+攻略(\\d+|all)?$`,
+          fnc: 'Guide',
+        }
       ],
     });
 
@@ -49,7 +62,7 @@ export class Guide extends ZZZPlugin {
     this.maxNum = this.source.length;
 
     // 最大显示攻略数量
-    this.maxForwardGuides = 4;
+    this.maxForwardGuides = _.get(settings.getConfig('guide'), 'max_forward_guides', 4);
   }
 
   async init() {
@@ -77,23 +90,27 @@ export class Guide extends ZZZPlugin {
   }
 
   async Guide() {
-    let reg = new RegExp(`${rulePrefix}(更新)?(\\S+)攻略(\\d+)?$`);
+    let reg = new RegExp(`${rulePrefix}(更新)?(\\S+)攻略(\\d+|all)?$`);
     let [
       ,
       ,
       ,
       ,
       isUpdate,
-      name,
-      group = '1', // setting.getConfig('mys')?.defaultSource
+      atlas,
+      group = _.get(settings.getConfig('guide'), 'default_guide', 1).toString(),
     ] = this.e.msg.match(reg);
-    group = +group;
+    // all -> 0
+    if (group == 'all') {
+      group = '0';
+    }
+    group = Number(group);
     if (group > this.maxNum) {
       await this.reply(`超过攻略数量（${this.maxNum}）`);
       return;
     }
-    let id = atlasToName(name);
-    if (!id) {
+    let name = atlasToName(atlas);
+    if (!name) {
       await this.reply('该角色不存在');
       return;
     }
@@ -108,7 +125,7 @@ export class Guide extends ZZZPlugin {
           msg.push(segment.image(`file://${guidePath}`));
           continue;
         }
-        if (i < this.maxForwardGuides && (await this.getImg(name, i))) {
+        if (i <= this.maxForwardGuides && (await this.getImg(name, i))) {
           msg.push(segment.image(`file://${guidePath}`));
         }
       }
@@ -131,23 +148,26 @@ export class Guide extends ZZZPlugin {
 
   /** 下载攻略图 */
   async getImg(name, group) {
-    let msyRes = [];
+    let mysRes = [];
     this.collection_id[group].forEach(id =>
-      msyRes.push(this.getData(this.url + id))
+      mysRes.push(this.getData(this.url + id))
     );
 
     try {
-      msyRes = await Promise.all(msyRes);
+      mysRes = await Promise.all(mysRes);
     } catch (error) {
       this.e.reply('暂无攻略数据，请稍后再试');
       console.log(`米游社接口报错：${error}}`);
       return false;
     }
 
-    let posts = lodash.flatten(lodash.map(msyRes, item => item.data.posts));
-    let url;
+    // 搜索时过滤特殊符号，譬如「11号」
+    const filtered_name = name.replace(/[^\w\s]|_/g, '')
+
+    let posts = lodash.flatten(lodash.map(mysRes, item => item.data.posts));
+    let url, created_at, updated_at;
     for (let val of posts) {
-      if (val.post.subject.replace(/【[^】]*本[^】]*】/g, '').includes(name)) {
+      if (val.post.subject.replace(/【[^】]*本[^】]*】/g, '').includes(filtered_name)) {
         let max = 0;
         val.image_list.forEach((v, i) => {
           if (
@@ -158,16 +178,18 @@ export class Guide extends ZZZPlugin {
           }
         });
         url = val.image_list[max].url;
+        created_at = val.post.created_at;
+        updated_at = val.post.updated_at;
         break;
       }
     }
     if (!url) {
       this.e.reply(
-        `暂无${name}攻略（${this.source[group - 1]}）\n请尝试其他的攻略来源查询`
+        `暂无${name}攻略 (${this.source[group - 1]})\n请尝试其他的攻略来源查询`
       );
       return false;
     }
-    console.log(`${this.e.logFnc} 下载${name}攻略图`);
+    console.log(`${this.e.logFnc} 下载${name}攻略图 - ${this.source[group - 1]}`);
 
     const download = await fetch(url);
     const arrayBuffer = await download.arrayBuffer();
@@ -175,7 +197,7 @@ export class Guide extends ZZZPlugin {
     let guidePath = this.getGuidePath(group, name);
     fs.writeFileSync(guidePath, buffer);
 
-    console.log(`${this.e.logFnc} 下载${name}攻略成功`);
+    console.log(`${this.e.logFnc} 下载${name}攻略成功 - ${this.source[group - 1]}`);
 
     return true;
   }
@@ -187,5 +209,58 @@ export class Guide extends ZZZPlugin {
       return false;
     }
     return await response.json();
+  }
+
+  /** %攻略帮助 */
+  async GuideHelp () {
+    let reply_msg = [
+      '绝区零角色攻略帮助:',
+      '%艾莲攻略+攻略id',
+      '%更新艾莲攻略+攻略id',
+      '%设置默认攻略+攻略id',
+      '%设置所有攻略显示个数+攻略id',
+      '示例: %艾莲攻略2',
+      '',
+      '攻略来源:'
+    ].concat(this.source.map((element, index) => `${index + 1}: ${element}`))
+    await this.e.reply(reply_msg.join('\n'))
+  }
+
+  setConfig(key, value) {
+    let config = fs.readFileSync(ZZZ_GUIDES_CONFIG_PATH, 'utf8')
+    let newREG = new RegExp(`^${key}: (.*)`, 'gm')
+    config = config.replace(newREG, `${key}: ${value}`)
+    fs.writeFileSync(ZZZ_GUIDES_CONFIG_PATH, config, 'utf8')
+  }
+
+  /** %设置默认攻略1 */
+  async SetDefaultGuide () {
+    let match = /设置默认攻略(\d+|all)$/g.exec(this.e.msg)
+    let guide_id = match[1]
+    if (guide_id == 'all') {
+      guide_id = 0
+    }
+    if (guide_id > this.maxNum) {
+      let reply_msg = [
+        '绝区零默认攻略设置方式为:',
+        '%设置默认攻略[0123...]',
+        `请增加数字0-${this.maxNum}其中一个，或者增加 all 以显示所有攻略`,
+        '攻略来源请输入 %攻略帮助 查看'
+      ]
+      await this.e.reply(reply_msg.join('\n'))
+      return
+    }
+    this.setConfig('default_guide', guide_id)
+    
+    let source_name = guide_id == 0 ? 'all' : this.source[guide_id - 1]
+    await this.e.reply(`绝区零默认攻略已设置为: ${guide_id} (${source_name})`)
+  }
+
+  /** %设置所有攻略显示个数3 */
+  async SetMaxForwardGuide () {
+    let match = /设置所有攻略显示个数(\d+)$/g.exec(this.e.msg)
+    let max_forward_guide = Number(match[1])
+    this.setConfig('max_forward_guides', max_forward_guide)
+    await this.e.reply(`绝区零所有攻略显示个数已设置为: ${max_forward_guide}`)
   }
 }
