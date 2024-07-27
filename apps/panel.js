@@ -4,6 +4,8 @@ import { rulePrefix } from '../lib/common.js';
 import { getPanelList, refreshPanel, getPanel } from '../lib/avatar.js';
 import settings from '../lib/settings.js';
 import _ from 'lodash';
+import { getMapData } from '../utils/file.js';
+const skilldict = getMapData('SkillData');
 
 export class Panel extends ZZZPlugin {
   constructor() {

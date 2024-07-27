@@ -610,6 +610,48 @@
   color: rgb(255, 255, 255);
   font-size: 1em;
 }
+.card .damage-title {
+  padding-top: 1.2em;
+}
+.card .damagelist {
+  margin: 0 2em;
+  margin-top: 1em;
+  text-align: center;
+  display: grid;
+  backdrop-filter: blur(0.2em);
+  border-radius: 0.5em;
+  overflow: hidden;
+  box-shadow: 0 0 3em rgba(0, 0, 0, 0.6);
+  border: 0.1em solid rgba(255, 255, 255, 0.2);
+}
+.card .damagelist .dmg-tr {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  border-bottom: 0.1em solid rgba(255, 255, 255, 0.2);
+}
+.card .damagelist .dmg-tr:first-child {
+  border-top: 0.2em solid rgba(255, 255, 255, 0.2);
+  border-bottom: 0.2em solid rgba(255, 255, 255, 0.2);
+  font-size: 1.1em;
+  background: rgba(0, 0, 0, 0.2);
+  text-shadow: 0 0 0.2em rgba(0, 0, 0, 0.6);
+}
+.card .damagelist .dmg-tr:first-child .dmg-td {
+  text-align: center !important;
+  background: none !important;
+}
+.card .damagelist .dmg-td {
+  padding: 0.5em 0.5em;
+  font-size: 0.9em;
+  border-right: 0.1em solid rgba(255, 255, 255, 0.2);
+}
+.card .damagelist .dmg-td:first-child {
+  text-align: left;
+  background: rgba(0, 0, 0, 0.2);
+}
+.card .damagelist .dmg-td:last-child {
+  border-right: none;
+}
 
 .copyright {
   margin-top: -3.3em;
