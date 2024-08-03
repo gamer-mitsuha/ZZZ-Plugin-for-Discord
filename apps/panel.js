@@ -4,8 +4,6 @@ import { rulePrefix } from '../lib/common.js';
 import { getPanelList, refreshPanel, getPanel } from '../lib/avatar.js';
 import settings from '../lib/settings.js';
 import _ from 'lodash';
-import { getMapData } from '../utils/file.js';
-const skilldict = getMapData('SkillData');
 
 export class Panel extends ZZZPlugin {
   constructor() {
@@ -19,6 +17,14 @@ export class Panel extends ZZZPlugin {
           reg: `${rulePrefix}(.*)面板(.*)$`,
           fnc: 'handleRule',
         },
+        {
+          reg: `${rulePrefix}练度(统计)?$`,
+          fnc: 'proficiency',
+        },
+        {
+          reg: `${rulePrefix}原图$`,
+          fnc: 'getCharOriImage',
+        },
       ],
     });
   }
@@ -28,9 +34,11 @@ export class Panel extends ZZZPlugin {
     const pre = this.e.msg.match(reg)[4].trim();
     const suf = this.e.msg.match(reg)[5].trim();
     if (['刷新', '更新'].includes(pre) || ['刷新', '更新'].includes(suf))
-      return this.refreshPanel();
-    if (!pre || suf === '列表') return this.getCharPanelList();
-    return this.getCharPanel();
+      return await this.refreshPanel();
+    if (!pre || suf === '列表') return await this.getCharPanelList();
+    const queryPanelReg = new RegExp(`${rulePrefix}(.*)面板$`);
+    if (queryPanelReg.test(this.e.msg)) return await this.getCharPanel();
+    return false;
   }
 
   async refreshPanel() {
@@ -64,6 +72,10 @@ export class Panel extends ZZZPlugin {
     const uid = await this.getUID();
     if (!uid) return false;
     const result = getPanelList(uid);
+    if (!result) {
+      await this.reply('未找到面板数据，请先%刷新面板');
+      return false;
+    }
     await this.getPlayerInfo();
     const timer = setTimeout(() => {
       if (this?.reply) {
@@ -84,8 +96,9 @@ export class Panel extends ZZZPlugin {
     const uid = await this.getUID();
     if (!uid) return false;
     const reg = new RegExp(`${rulePrefix}(.+)面板$`);
-    const name = this.e.msg.match(reg)[4];
-    if (['刷新', '更新'].includes(name)) return this.getCharPanelList();
+    const match = this.e.msg.match(reg);
+    if (!match) return false;
+    const name = match[4];
     const data = getPanel(uid, name);
     if (!data) {
       await this.reply(`未找到角色${name}的面板信息，请先刷新面板`);
@@ -102,6 +115,89 @@ export class Panel extends ZZZPlugin {
       uid: uid,
       charData: data,
     };
-    await render(this.e, 'panel/card.html', finalData);
+    const image = await render(this.e, 'panel/card.html', finalData, {
+      retType: 'base64',
+    });
+    const res = await this.reply(image);
+    if (res?.message_id)
+      await redis.set(`ZZZ:PANEL:IMAGE:${res.message_id}`, data.role_icon, {
+        EX: 3600 * 3,
+      });
+
+    return false;
+  }
+  async proficiency() {
+    const uid = await this.getUID();
+    if (!uid) return false;
+    const result = getPanelList(uid);
+    if (!result) {
+      await this.reply('未找到面板数据，请先%刷新面板');
+      return false;
+    }
+    await this.getPlayerInfo();
+    result.sort((a, b) => {
+      return b.proficiency_score - a.proficiency_score;
+    });
+    const WeaponCount = result.filter(item => item?.weapon).length,
+      SWeaponCount = result.filter(
+        item => item?.weapon && item.weapon.rarity === 'S'
+      ).length;
+    const general = {
+      total: result.length,
+      SCount: result.filter(item => item.rarity === 'S').length,
+      SWeaponRate: (SWeaponCount / WeaponCount) * 100,
+      SSSCount: result.reduce((acc, item) => {
+        if (item.equip) {
+          acc += item.equip.filter(
+            equip => equip.comment === 'SSS' || equip.comment === 'ACE'
+          ).length;
+        }
+        return acc;
+      }, 0),
+      highRank: result.filter(item => item.rank > 4).length,
+    };
+    const timer = setTimeout(() => {
+      if (this?.reply) {
+        this.reply('查询成功，正在下载图片资源，请稍候。');
+      }
+    }, 3000);
+    for (const item of result) {
+      await item.get_small_basic_assets();
+    }
+    clearTimeout(timer);
+    const finalData = {
+      general,
+      list: result,
+    };
+    await render(this.e, 'proficiency/index.html', finalData);
+  }
+  async getCharOriImage() {
+    let source;
+    if (this.e.getReply) {
+      source = await this.e.getReply();
+    } else if (this.e.source) {
+      if (this.e.group?.getChatHistory) {
+        // 支持at图片添加，以及支持后发送
+        source = (
+          await this.e.group.getChatHistory(this.e.source?.seq, 1)
+        ).pop();
+      } else if (this.e.friend?.getChatHistory) {
+        source = (
+          await this.e.friend.getChatHistory(this.e.source?.time + 1, 1)
+        ).pop();
+      }
+    }
+    const id = source?.message_id;
+    if (!id) {
+      await this.reply('未找到消息源，请引用要查看的图片');
+      return false;
+    }
+    const image = await redis.get(`ZZZ:PANEL:IMAGE:${id}`);
+    if (!image) {
+      await this.reply('未找到原图');
+      return false;
+    }
+    await this.reply(segment.image(image));
+    return false;
   }
 }

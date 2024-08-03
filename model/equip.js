@@ -1,5 +1,11 @@
 import { property } from '../lib/convert.js';
 import { getSuitImage, getWeaponImage } from '../lib/download.js';
+import {
+  getEquipPropertyBaseScore,
+  getEquipPropertyEnhanceCount,
+  getEquipPropertyScore,
+  hasScoreData,
+} from '../lib/score.js';
 
 /**
  * @class
@@ -27,8 +33,29 @@ export class EquipProperty {
     this.property_name = property_name;
     this.property_id = property_id;
     this.base = base;
+    /** @type {number | false} */
+    this.score = false;
 
     this.classname = property.idToClassName(property_id);
+  }
+
+  /**
+   * 获取属性分数
+   * @param {string} charID
+   * @returns {number}
+   */
+  get_score(charID) {
+    if (hasScoreData(charID)) {
+      this.score = getEquipPropertyScore(charID, this.property_id, this.base);
+      /** @type {number} */
+      this.base_score = getEquipPropertyBaseScore(charID, this.property_id);
+    }
+    return this.score;
+  }
+
+  /** @type {number} */
+  get count() {
+    return getEquipPropertyEnhanceCount(this.property_id, this.base);
   }
 }
 
@@ -60,6 +87,36 @@ export class EquipMainProperty {
     this.base = base;
 
     this.classname = property.idToClassName(property_id);
+    this.score = 0;
+  }
+
+  /**
+   * 获取属性分数
+   * @param {string} charID
+   * @returns {number}
+   */
+  get_score(charID) {
+    /** @type {number} */
+    const _score = getEquipPropertyBaseScore(
+      charID,
+      this.property_id,
+      this.base
+    );
+    if (_score > 0) {
+      this.score = 1;
+    }
+    return this.score;
+  }
+
+  /** @type {string} */
+  get short_name() {
+    if (this.property_name.includes('属性伤害加成')) {
+      return this.property_name.replace('属性伤害加成', '伤加成');
+    }
+    if (this.property_name === '能量自动回复') {
+      return '能量回复';
+    }
+    return this.property_name;
   }
 }
 
@@ -120,6 +177,8 @@ export class Equip {
     this.equip_suit;
     /** @type {number} */
     this.equipment_type;
+    /** @type {boolean|number} */
+    this.score = false;
 
     const {
       id,
@@ -158,6 +217,58 @@ export class Equip {
   async get_assets() {
     const result = await getSuitImage(this.id);
     this.suit_icon = result;
+  }
+
+  /**
+   * 获取装备属性分数
+   * @param {string} charID
+   * @returns {number}
+   */
+  get_score(charID) {
+    if (hasScoreData(charID)) {
+      this.score = this.properties.reduce(
+        (acc, item) => acc + item.get_score(charID),
+        0
+      );
+      const additional = this.main_properties.reduce(
+        (acc, item) => acc + item.get_score(charID),
+        0
+      );
+      if (this.equipment_type === 4) {
+        this.score += 4.8 * additional;
+      } else if (this.equipment_type === 5) {
+        this.score += 9.6 * additional;
+      } else if (this.equipment_type === 6) {
+        this.score += 4.8 * additional;
+      }
+    }
+    return this.score;
+  }
+
+  /** @type {'C'|'B'|'A'|'S'|'SS'|'SSS'|'ACE'|false} */
+  get comment() {
+    if (this.score < 10) {
+      return 'C';
+    }
+    if (this.score <= 15) {
+      return 'B';
+    }
+    if (this.score <= 20) {
+      return 'A';
+    }
+    if (this.score <= 25) {
+      return 'S';
+    }
+    if (this.score <= 30) {
+      return 'SS';
+    }
+    if (this.score <= 35) {
+      return 'SSS';
+    }
+    if (this.score > 35) {
+      return 'ACE';
+    }
+    return false;
   }
 }
 
@@ -231,6 +342,8 @@ export class Weapon {
     this.talent_title = talent_title;
     this.talent_content = talent_content;
     this.profession = profession;
+    /** @type {number} 等级级别（取十位数字） */
+    this.level_rank = Math.floor(level / 10);
   }
 
   async get_assets() {
