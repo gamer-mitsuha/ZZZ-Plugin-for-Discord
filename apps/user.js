@@ -1,8 +1,7 @@
 import { ZZZPlugin } from '../lib/plugin.js';
-import render from '../lib/render.js';
 import { rulePrefix } from '../lib/common.js';
-import { getPanelList, refreshPanel, getPanel } from '../lib/avatar.js';
 import settings from '../lib/settings.js';
+import common from '../../../lib/common/common.js';
 import _ from 'lodash';
 
 export class Panel extends ZZZPlugin {
@@ -16,6 +15,10 @@ export class Panel extends ZZZPlugin {
         {
           reg: `${rulePrefix}绑定设备$`,
           fnc: 'bindDevice',
+        },
+        {
+          reg: `${rulePrefix}绑定设备帮助$`,
+          fnc: 'bindDeviceHelp',
         },
       ],
     });
@@ -33,8 +36,8 @@ export class Panel extends ZZZPlugin {
     );
   }
   async toBindDevice() {
-    const uid = await this.getUID();
-    if (!uid) {
+    const ltuid = await this.getLtuid();
+    if (!ltuid) {
       this.reply('未绑定UID');
       this.finish('toBindDevice');
       return false;
@@ -66,14 +69,14 @@ export class Panel extends ZZZPlugin {
         this.reply('设备信息格式错误', false, { at: true, recallMsg: 100 });
         return false;
       }
-      await redis.del(`ZZZ:DEVICE_FP:${uid}:FP`);
-      await redis.set(`ZZZ:DEVICE_FP:${uid}:BIND`, JSON.stringify(info));
+      await redis.del(`ZZZ:DEVICE_FP:${ltuid}:FP`);
+      await redis.set(`ZZZ:DEVICE_FP:${ltuid}:BIND`, JSON.stringify(info));
       const { deviceFp } = await this.getAPI();
       if (!deviceFp) {
         await this.reply('绑定设备失败');
         return false;
       }
-      logger.debug(`[UID:${uid}]绑定设备成功，deviceFp:${deviceFp}`);
+      logger.debug(`[LTUID:${ltuid}]绑定设备成功，deviceFp:${deviceFp}`);
       await this.reply('绑定设备成功', false, { at: true, recallMsg: 100 });
     } catch (error) {
       this.reply('设备信息格式错误', false, { at: true, recallMsg: 100 });
@@ -82,5 +85,19 @@ export class Panel extends ZZZPlugin {
       this.finish('toBindDevice');
       return false;
     }
+  }
+  async bindDeviceHelp() {
+    const msgs = [
+        '绑定设备帮助',
+        settings.getConfig('config')?.url,
+        '1. 使用常用米游社手机下载以上APK，并安装',
+        '2. 打开后点击按钮复制',
+        '3. 给机器人发送"%绑定设备"指令',
+        '4. 机器人会提示发送设备信息',
+        '5. 粘贴设备信息发送',
+        '6. 提示绑定成功',
+      ],
+      msg = msgs.join('\n');
+    await this.reply(await common.makeForwardMsg(this.e, msg, '绑定设备帮助'));
   }
 }

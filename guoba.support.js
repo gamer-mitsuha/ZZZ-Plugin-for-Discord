@@ -45,6 +45,15 @@ export function supportGuoba() {
           },
         },
         {
+          field: 'config.url',
+          label: '绑定设备下载url',
+          bottomHelpMessage: '设置自定义的绑定绑定设备下载url',
+          component:'Input',
+          componentProps: {
+            placeholder: '请输入绑定设备apk下载url',
+          }
+        },
+        {
           field: 'config.query.others',
           label: '查询他人信息',
           bottomHelpMessage: '是否允许查询他人信息',
@@ -185,6 +194,64 @@ export function supportGuoba() {
             max: 7,
             placeholder: '请输入数字1～7',
           },
+        },
+        {
+          component: 'Divider',
+          label: '默认设备信息设置',
+        },
+        {
+          field: 'device.productName',
+          label: 'productName',
+          bottomHelpMessage: '设置默认设备productName字段',
+          component:'Input',
+          componentProps: {
+            placeholder: '请输入productName',
+          }
+        },
+        {
+          field: 'device.productType',
+          label: 'productType',
+          bottomHelpMessage: '设置默认设备productType字段',
+          component:'Input',
+          componentProps: {
+            placeholder: '请输入productType',
+          }
+        },
+        {
+          field: 'device.modelName',
+          label: 'modelName',
+          bottomHelpMessage: '设置默认设备modelName字段',
+          component:'Input',
+          componentProps: {
+            placeholder: '请输入modelName',
+          }
+        },
+        {
+          field: 'device.oaid',
+          label: 'oaid',
+          bottomHelpMessage: '设置默认设备oaid字段',
+          component:'Input',
+          componentProps: {
+            placeholder: '请输入oaid',
+          }
+        },
+        {
+          field: 'device.deviceInfo',
+          label: 'deviceInfo',
+          bottomHelpMessage: '设置默认设备deviceInfo字段',
+          component:'Input',
+          componentProps: {
+            placeholder: '请输入deviceInfo',
+          }
+        },
+        {
+          field: 'device.board',
+          label: 'board',
+          bottomHelpMessage: '设置默认设备board字段',
+          component:'Input',
+          componentProps: {
+            placeholder: '请输入board',
+          }
         },
         {
           component: 'Divider',

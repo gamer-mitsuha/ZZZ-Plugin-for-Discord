@@ -1,33 +1,34 @@
-import http from 'http';
-import https from 'https';
+import fetch from 'node-fetch';
+
+//暂时先写死罢（
+const timeout = 5000
+
 export async function checkLatency(url) {
-  let request = http;
-  if (url.startsWith('https')) {
-    request = https;
+  const controller = new AbortController()
+  const { signal } = controller
+  const timeoutId = setTimeout(() => controller.abort(), timeout)
+
+  const start = Date.now()
+
+  try {
+    await fetch(url, { signal })
+    const latency = Date.now() - start
+    return { url, latency }
+  } catch (err) {
+    logger.debug(`下载节点 ${url} 连接失败:`, err.message)
+    return { url, latency: Infinity }
+  } finally {
+    clearTimeout(timeoutId)
   }
-  return new Promise(resolve => {
-    const start = Date.now();
-    request
-      .get(url, res => {
-        res.on('data', () => {});
-        res.on('end', () => {
-          const latency = Date.now() - start;
-          resolve({ url, latency });
-        });
-      })
-      .on('error', err => {
-        logger.debug(`下载节点 ${url} 连接失败:`, err.message);
-        resolve({ url, latency: Infinity });
-      });
-  });
 }
 
+
 export async function findLowestLatencyUrl(urls) {
-  const results = await Promise.all(urls.map(checkLatency));
+  const results = await Promise.allSettled(urls.map(checkLatency));
   const lowestLatencyResult = results.reduce((prev, curr) =>
-    prev.latency < curr.latency ? prev : curr
+    prev.value.latency < curr.value.latency ? prev : curr
   );
-  return lowestLatencyResult.url;
+  return lowestLatencyResult.value.url;
 }
 
 export function getQueryVariable(url, variable) {
