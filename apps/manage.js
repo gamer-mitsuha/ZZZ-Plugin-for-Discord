@@ -1,8 +1,8 @@
 import { ZZZPlugin } from '../lib/plugin.js';
-import { rulePrefix } from '../lib/common.js';
 import settings from '../lib/settings.js';
 import _ from 'lodash';
 import manage from './manage/index.js';
+import { rulePrefix } from '../lib/common.js';
 
 export class Panel extends ZZZPlugin {
   constructor() {
@@ -60,6 +60,30 @@ export class Panel extends ZZZPlugin {
           reg: `${rulePrefix}删除(\\S+)(角色|面板)图(.+)$`,
           fnc: 'deleteCharacterImg',
         },
+        {
+          reg: `${rulePrefix}(插件)?版本$`,
+          fnc: 'getChangeLog',
+        },
+        {
+          reg: `^${rulePrefix}(插件)?更新日志$`,
+          fnc: 'getCommitLog',
+        },
+        {
+          reg: `^${rulePrefix}(插件)?检查更新$`,
+          fnc: 'hasUpdate',
+        },
+        {
+          reg: `${rulePrefix}设置默认设备`,
+          fnc: 'setDefaultDevice',
+        },
+        {
+          reg: `${rulePrefix}(开启|关闭)更新推送$`,
+          fnc: 'enableAutoUpdatePush',
+        },
+        {
+          reg: `${rulePrefix}设置检查更新时间(.+)$`,
+          fnc: 'setCheckUpdateCron',
+        },
       ],
     });
 
@@ -75,5 +99,12 @@ export class Panel extends ZZZPlugin {
     this.uploadCharacterImg = manage.panel.uploadCharacterImg;
     this.getCharacterImages = manage.panel.getCharacterImages;
     this.deleteCharacterImg = manage.panel.deleteCharacterImg;
+    this.getChangeLog = manage.version.getChangeLog;
+    this.getCommitLog = manage.version.getCommitLog;
+    this.hasUpdate = manage.version.hasUpdate;
+    this.enableAutoUpdatePush = manage.version.enableAutoUpdatePush;
+    this.setCheckUpdateCron = manage.version.setCheckUpdateCron;
+    this.setDefaultDevice = manage.device.setDefaultDevice;
+    this.toSetDefaultDevice = manage.device.toSetDefaultDevice;
   }
 }

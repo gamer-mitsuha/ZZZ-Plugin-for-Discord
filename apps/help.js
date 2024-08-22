@@ -1,6 +1,5 @@
-import { ZZZPlugin } from '../lib/plugin.js';
 import { rulePrefix } from '../lib/common.js';
-import render from '../lib/render.js';
+import { ZZZPlugin } from '../lib/plugin.js';
 import settings from '../lib/settings.js';
 import _ from 'lodash';
 /**
@@ -170,7 +169,7 @@ const helpData = [
     items: [
       {
         title: '绑定设备',
-        desc: '用于解决10041报错等问题',
+        desc: '用于尝试解决10041报错等问题（无法100%解决），需要发送设备信息，具体方法请发送%绑定设备帮助查看',
         needCK: true,
         needSK: false,
         commands: ['绑定设备'],
@@ -178,9 +177,37 @@ const helpData = [
       {
         title: '绑定设备帮助',
         desc: '查看如何绑定设备',
-        needCK: true,
+        needCK: false,
         needSK: false,
         commands: ['绑定设备帮助'],
+      },
+      {
+        title: '解绑设备',
+        desc: '解除绑定设备',
+        needCK: false,
+        needSK: false,
+        commands: ['解绑设备'],
+      },
+      {
+        title: '更新日志',
+        desc: '查看插件的Commit日志',
+        needCK: false,
+        needSK: false,
+        commands: ['[插件]更新日志'],
+      },
+      {
+        title: '版本',
+        desc: '查看插件版本日志',
+        needCK: false,
+        needSK: false,
+        commands: ['[插件]版本'],
+      },
+      {
+        title: '检查更新',
+        desc: '检查插件是否更新',
+        needCK: false,
+        needSK: false,
+        commands: ['[插件]检查更新'],
       },
     ],
   },
@@ -224,7 +251,7 @@ export class Help extends ZZZPlugin {
             },
             {
               title: '删除资源（需注意）',
-              desc: '请注意，此命令会删除自定义面板图，请确认做好备份后再执行！！！删除已经下载的资源，查询时需要再次下载（用于删除错误下载缓存）。',
+              desc: '删除已经下载的资源，查询时需要再次下载（用于删除错误下载缓存）。',
               needCK: false,
               needSK: false,
               commands: ['删除全部/所有资源'],
@@ -297,15 +324,36 @@ export class Help extends ZZZPlugin {
               needSK: false,
               commands: ['删除+角色名+面板图', '删除+角色名+角色图'],
             },
+            {
+              title: '设置默认设备',
+              desc: '设置默认设备信息，当用户没有绑定设备时，会使用默认设备信息',
+              needCK: false,
+              needSK: false,
+              commands: ['设置默认设备'],
+            },
+            {
+              title: '开启/关闭更新推送',
+              desc: '开启/关闭更新推送，更新仅推送给第一个主人',
+              needCK: false,
+              needSK: false,
+              commands: ['开启/关闭更新推送'],
+            },
+            {
+              title: '设置检查自动更新时间',
+              desc: '设置检查自动更新时间，cron表达式，如0 0/10 * * * ?',
+              needCK: false,
+              needSK: false,
+              commands: ['设置检查更新时间+cron表达式'],
+            },
           ],
         },
       ];
-      await render(this.e, 'help/index.html', {
+      await this.render('help/index.html', {
         helpData: _helpData,
       });
       return false;
     }
-    await render(this.e, 'help/index.html', {
+    await this.render('help/index.html', {
       helpData,
     });
     return false;

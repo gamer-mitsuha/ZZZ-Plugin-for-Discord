@@ -1,16 +1,13 @@
-import _ from 'lodash'
-import { rulePrefix } from '../lib/common.js'
-import { pluginName } from '../lib/path.js'
-import settings from '../lib/settings.js'
+import _ from 'lodash';
+import { pluginName } from '../lib/path.js';
+import settings from '../lib/settings.js';
+import { ZZZUpdate } from '../lib/update.js';
+import config from '../../../lib/config/config.js';
+import { rulePrefix } from '../lib/common.js';
 
-let Update = null
-try {
-  Update = (await import("../../other/update.js").catch(e => null))?.update
-  Update ||= (await import("../../system/apps/update.ts")).update
-} catch (e) {
-  logger.error(`[${pluginName}]未获取到更新js ${logger.yellow("更新功能")} 将无法使用`)
-}
-
+const updateInfo = {
+  lastCheckCommit: '',
+};
 export class update extends plugin {
   constructor() {
     super({
@@ -23,30 +20,66 @@ export class update extends plugin {
           reg: `^${rulePrefix}(插件)?(强制)?更新(插件)?$`,
           fnc: 'update',
         },
-        {
-          reg: `^${rulePrefix}(插件)?更新日志$`,
-          fnc: 'update_log',
-        }
       ],
-    })
+    });
+    const updateConfig = _.get(settings.getConfig('config'), 'update', {});
+    const cron = _.get(updateConfig, 'cron', '0 0/10 * * * ?');
+    this.task = {
+      name: 'ZZZ-Plugin自动检测更新',
+      cron: cron,
+      fnc: () => {
+        this.checkUpdateTask();
+      },
+    };
   }
 
   async update(e = this.e) {
-    if (!e.isMaster) return
-    e.msg = `#${e.msg.includes("强制") ? "强制" : ""}更新${pluginName}`
-    const up = new Update(e)
-    up.e = e
-    return up.update()
+    if (!e.isMaster || !ZZZUpdate) return false;
+    e.msg = `#${e.msg.includes('强制') ? '强制' : ''}更新${pluginName}`;
+    const up = new ZZZUpdate(e);
+    up.e = e;
+    return up.update();
   }
 
-  async update_log() {
-    let Update_Plugin = new Update()
-    Update_Plugin.e = this.e
-    Update_Plugin.reply = this.reply
-
-    if (Update_Plugin.getPlugin(pluginName)) {
-      this.e.reply(await Update_Plugin.getLog(pluginName))
+  async checkUpdateTask() {
+    const updateConfig = _.get(settings.getConfig('config'), 'update', {});
+    const enable = _.get(updateConfig, 'autoCheck', false);
+    if (!enable) return;
+    if (!ZZZUpdate) return false;
+    const up = new ZZZUpdate();
+    const result = await up.hasUpdate();
+    if (result.hasUpdate) {
+      if (result.logs[0].commit === updateInfo.lastCheckCommit) return;
+      const botInfo = { nickname: 'ZZZ-Plugin更新', user_id: Bot.uin };
+      const msgs = [
+        {
+          message: [`[${pluginName}]有${result.logs.length || 1}个更新`],
+          ...botInfo,
+        },
+      ];
+      for (const log of result.logs) {
+        msgs.push({
+          message: [`[${log.commit}|${log.date}]${log.msg}`],
+          ...botInfo,
+        });
+      }
+      const msg = Bot.makeForwardMsg(msgs);
+      try {
+        ForMsg.data = ForMsg.data
+          .replace(/\n/g, '')
+          .replace(/<title color="#777777" size="26">(.+?)<\/title>/g, '___')
+          .replace(
+            /___+/,
+            '<title color="#777777" size="26">ZZZ-Plugin更新</title>'
+          );
+      } catch (err) {}
+      const masters = config.masterQQ;
+      for (const master of masters) {
+        if (master.toString().length > 11) continue;
+        await Bot.pickFriend(master).sendMsg(msg);
+        break;
+      }
+      updateInfo.lastCheckCommit = result.logs[0].commit;
     }
-    return true
   }
 }

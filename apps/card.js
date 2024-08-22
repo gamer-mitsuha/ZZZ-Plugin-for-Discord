@@ -1,9 +1,8 @@
 import { ZZZPlugin } from '../lib/plugin.js';
-import render from '../lib/render.js';
-import { rulePrefix } from '../lib/common.js';
 import { ZZZIndexResp } from '../model/index.js';
 import settings from '../lib/settings.js';
 import _ from 'lodash';
+import { rulePrefix } from '../lib/common.js';
 
 export class Card extends ZZZPlugin {
   constructor() {
@@ -21,20 +20,24 @@ export class Card extends ZZZPlugin {
     });
   }
   async card() {
-    const { api, deviceFp } = await this.getAPI();
-    if (!api) return false;
+    const { api } = await this.getAPI();
     await this.getPlayerInfo();
-    const indexData = await api.getFinalData(this.e, 'zzzIndex', { deviceFp });
+    const indexData = await api.getFinalData('zzzIndex').catch(e => {
+      this.reply(e.message);
+      throw e;
+    });
     if (!indexData) return false;
 
-    let zzzAvatarList = await api.getFinalData(this.e, 'zzzAvatarList', {
-      deviceFp,
+    let zzzAvatarList = await api.getFinalData('zzzAvatarList').catch(e => {
+      this.reply(e.message);
+      throw e;
     });
     if (!zzzAvatarList) return false;
     indexData.avatar_list = zzzAvatarList.avatar_list;
 
-    let zzzBuddyList = await api.getFinalData(this.e, 'zzzBuddyList', {
-      deviceFp,
+    let zzzBuddyList = await api.getFinalData('zzzBuddyList').catch(e => {
+      this.reply(e.message);
+      throw e;
     });
     if (!zzzBuddyList) return false;
     indexData.buddy_list = zzzBuddyList.list;
@@ -45,12 +48,12 @@ export class Card extends ZZZPlugin {
       if (this?.reply) {
         this.reply('查询成功，正在下载图片资源，请稍候。');
       }
-    }, 3000);
+    }, 5000);
     await finalIndexData.get_assets();
     clearTimeout(timer);
     const data = {
       card: finalIndexData,
     };
-    await render(this.e, 'card/index.html', data);
+    await this.render('card/index.html', data);
   }
 }

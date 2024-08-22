@@ -1,9 +1,8 @@
 import { ZZZPlugin } from '../lib/plugin.js';
-import render from '../lib/render.js';
-import { rulePrefix } from '../lib/common.js';
 import { getPanelList, refreshPanel, getPanel } from '../lib/avatar.js';
 import settings from '../lib/settings.js';
 import _ from 'lodash';
+import { rulePrefix } from '../lib/common.js';
 
 export class Panel extends ZZZPlugin {
   constructor() {
@@ -43,7 +42,6 @@ export class Panel extends ZZZPlugin {
 
   async refreshPanel() {
     const uid = await this.getUID();
-    if (!uid) return;
     const lastQueryTime = await redis.get(`ZZZ:PANEL:${uid}:LASTTIME`);
     const panelSettings = settings.getConfig('panel');
     const coldTime = _.get(panelSettings, 'interval', 300);
@@ -51,12 +49,14 @@ export class Panel extends ZZZPlugin {
       await this.reply(`${coldTime}秒内只能刷新一次，请稍后再试`);
       return false;
     }
-    const { api, deviceFp } = await this.getAPI();
-    if (!api) return false;
+    const { api } = await this.getAPI();
     await redis.set(`ZZZ:PANEL:${uid}:LASTTIME`, Date.now());
     await this.reply('正在刷新面板列表，请稍候...');
     await this.getPlayerInfo();
-    const result = await refreshPanel(this.e, api, uid, deviceFp);
+    const result = await refreshPanel(api, uid).catch(e => {
+      this.reply(e.message);
+      throw e;
+    });
     if (!result) {
       await this.reply('面板列表刷新失败，请稍后再试');
       return false;
@@ -66,11 +66,10 @@ export class Panel extends ZZZPlugin {
       newChar: newChar.length,
       list: result,
     };
-    await render(this.e, 'panel/refresh.html', finalData);
+    await this.render('panel/refresh.html', finalData);
   }
   async getCharPanelList() {
     const uid = await this.getUID();
-    if (!uid) return false;
     const result = getPanelList(uid);
     if (!result) {
       await this.reply('未找到面板数据，请先%刷新面板');
@@ -81,7 +80,7 @@ export class Panel extends ZZZPlugin {
       if (this?.reply) {
         this.reply('查询成功，正在下载图片资源，请稍候。');
       }
-    }, 3000);
+    }, 5000);
     for (const item of result) {
       await item.get_basic_assets();
     }
@@ -90,11 +89,10 @@ export class Panel extends ZZZPlugin {
       count: result?.length || 0,
       list: result,
     };
-    await render(this.e, 'panel/list.html', finalData);
+    await this.render('panel/list.html', finalData);
   }
   async getCharPanel() {
     const uid = await this.getUID();
-    if (!uid) return false;
     const reg = new RegExp(`${rulePrefix}(.+)面板$`);
     const match = this.e.msg.match(reg);
     if (!match) return false;
@@ -108,14 +106,14 @@ export class Panel extends ZZZPlugin {
       if (this?.reply) {
         this.reply('查询成功，正在下载图片资源，请稍候。');
       }
-    }, 3000);
+    }, 5000);
     await data.get_detail_assets();
     clearTimeout(timer);
     const finalData = {
       uid: uid,
       charData: data,
     };
-    const image = await render(this.e, 'panel/card.html', finalData, {
+    const image = await this.render('panel/card.html', finalData, {
       retType: 'base64',
     });
     const res = await this.reply(image);
@@ -128,7 +126,6 @@ export class Panel extends ZZZPlugin {
   }
   async proficiency() {
     const uid = await this.getUID();
-    if (!uid) return false;
     const result = getPanelList(uid);
     if (!result) {
       await this.reply('未找到面板数据，请先%刷新面板');
@@ -160,7 +157,7 @@ export class Panel extends ZZZPlugin {
       if (this?.reply) {
         this.reply('查询成功，正在下载图片资源，请稍候。');
       }
-    }, 3000);
+    }, 5000);
     for (const item of result) {
       await item.get_small_basic_assets();
     }
@@ -169,7 +166,7 @@ export class Panel extends ZZZPlugin {
       general,
       list: result,
     };
-    await render(this.e, 'proficiency/index.html', finalData);
+    await this.render('proficiency/index.html', finalData);
   }
   async getCharOriImage() {
     let source;

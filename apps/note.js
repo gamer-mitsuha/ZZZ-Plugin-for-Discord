@@ -1,9 +1,8 @@
 import { ZZZPlugin } from '../lib/plugin.js';
-import render from '../lib/render.js';
 import { ZZZNoteResp } from '../model/note.js';
-import { rulePrefix } from '../lib/common.js';
 import settings from '../lib/settings.js';
 import _ from 'lodash';
+import { rulePrefix } from '../lib/common.js';
 
 export class Note extends ZZZPlugin {
   constructor() {
@@ -21,17 +20,17 @@ export class Note extends ZZZPlugin {
     });
   }
   async note() {
-    const { api, deviceFp } = await this.getAPI();
-    if (!api) return false;
+    const { api } = await this.getAPI();
     await this.getPlayerInfo();
-    const noteResponse = await api.getFinalData(this.e, 'zzzNote', {
-      deviceFp,
+    const noteResponse = await api.getFinalData('zzzNote').catch(e => {
+      this.reply(e.message);
+      throw e;
     });
     if (!noteResponse) return false;
     const noteData = new ZZZNoteResp(noteResponse);
     const finalData = {
       note: noteData,
     };
-    await render(this.e, 'note/index.html', finalData);
+    await this.render('note/index.html', finalData);
   }
 }
