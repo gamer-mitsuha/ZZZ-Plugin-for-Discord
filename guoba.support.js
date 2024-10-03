@@ -260,12 +260,12 @@ export function supportGuoba() {
           },
         },
         {
-          field: 'device.oaid',
-          label: 'oaid',
-          bottomHelpMessage: '设置默认设备oaid字段',
+          field: 'device.osVersion',
+          label: 'osVersion(androidVersion)',
+          bottomHelpMessage: '设置默认设备osVersion字段',
           component: 'Input',
           componentProps: {
-            placeholder: '请输入oaid',
+            placeholder: '请输入osVersion',
           },
         },
         {

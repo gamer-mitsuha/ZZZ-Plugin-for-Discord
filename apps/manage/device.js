@@ -33,7 +33,7 @@ export async function toSetDefaultDevice() {
       !info?.deviceName ||
       !info?.deviceBoard ||
       !info?.deviceModel ||
-      !info?.oaid ||
+      !info?.androidVersion ||
       !info?.deviceFingerprint ||
       !info?.deviceProduct
     ) {
@@ -44,7 +44,7 @@ export async function toSetDefaultDevice() {
       productName: info.deviceProduct,
       productType: info.deviceName,
       modelName: info.deviceModel,
-      oaid: info.oaid,
+      osVersion: info.androidVersion,
       deviceInfo: info.deviceFingerprint,
       board: info.deviceBoard,
     });
