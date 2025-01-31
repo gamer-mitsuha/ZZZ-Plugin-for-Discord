@@ -169,6 +169,19 @@ export function supportGuoba() {
           },
         },
         {
+          field: 'panel.roleInterval',
+          label: '冷却时间',
+          bottomHelpMessage:
+            '设置刷新角色的冷却时间，单位为秒，取值范围为0～1000',
+          component: 'InputNumber',
+          required: true,
+          componentProps: {
+            min: 0,
+            max: 1000,
+            placeholder: '请输入数字',
+          },
+        },
+        {
           component: 'Divider',
           label: '攻略设置',
         },
@@ -234,7 +247,7 @@ export function supportGuoba() {
         },
         {
           field: 'device.productName',
-          label: 'productName(deviceProduct)',
+          label: 'productName(deviceName)',
           bottomHelpMessage: '设置默认设备productName字段',
           component: 'Input',
           componentProps: {
@@ -243,7 +256,7 @@ export function supportGuoba() {
         },
         {
           field: 'device.productType',
-          label: 'productType(deviceName)',
+          label: 'productType(deviceProduct)',
           bottomHelpMessage: '设置默认设备productType字段',
           component: 'Input',
           componentProps: {

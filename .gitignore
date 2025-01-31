@@ -9,3 +9,5 @@ data/**/*.*
 
 resources/images/**/*.*
 resources/data/**/*.*
+model/damage/map/
+model/damage/character/**/*_user.*

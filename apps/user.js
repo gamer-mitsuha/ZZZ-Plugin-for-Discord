@@ -4,7 +4,7 @@ import common from '../../../lib/common/common.js';
 import _ from 'lodash';
 import { rulePrefix } from '../lib/common.js';
 
-export class Panel extends ZZZPlugin {
+export class User extends ZZZPlugin {
   constructor() {
     super({
       name: '[ZZZ-Plugin]User',
@@ -29,6 +29,10 @@ export class Panel extends ZZZPlugin {
   }
   async bindDevice() {
     const uid = await this.getUID();
+    if (/^(1[0-9])[0-9]{8}/i.test(uid)) {
+      await this.reply('国际服不需要绑定设备');
+      return false;
+    }
     //先throw一步（
     this.setContext('toBindDevice');
     await this.reply(
@@ -97,6 +101,8 @@ export class Panel extends ZZZPlugin {
     }
   }
   async deleteBind() {
+    const uid = await this.getUID();
+    if (/^(1[0-9])[0-9]{8}/i.test(uid)) return false;
     const ltuid = await this.getLtuid();
     await redis.del(`ZZZ:DEVICE_FP:${ltuid}:FP`);
     await redis.del(`ZZZ:DEVICE_FP:${ltuid}:BIND`);
