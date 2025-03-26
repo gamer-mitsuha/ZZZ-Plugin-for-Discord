@@ -25,8 +25,10 @@ export interface skill {
    * 当出现“X"(造成的伤害)被视为“Y”(伤害)时，可使用该参数指定Y的类型。
    * - 存在重定向时，range须全匹配，redirect向后覆盖
    * - 不存在重定向时，range向后覆盖
+   * 
+   * 当为数组类型时（多类型共存），满足数组内其一类型即可，判断规则同上
    */
-  redirect?: string
+  redirect?: string | string[] | anomaly[] | "追加攻击"[]
   /** 角色面板伤害统计中是否隐藏显示 */
   isHide?: boolean
   /** 禁用伤害计算cache */
@@ -127,11 +129,11 @@ export class Calculator {
   readonly buffM: BuffManager
   readonly avatar: ZZZAvatarInfo
   readonly skills: skill[] = []
-  private cache: { [type: string]: damage } = {}
-  private props: damage['props'] = {}
+  private cache: { [type: string]: damage } = Object.create(null)
+  private props: Exclude<damage['props'], undefined> = Object.create(null)
   /** 当前正在计算的技能 */
   skill: skill
-  defaultSkill: { [key in keyof skill]?: skill[key] } = {}
+  defaultSkill: { [key in keyof skill]?: skill[key] } = Object.create(null)
   enemy: enemy
 
   constructor(buffM: BuffManager) {
@@ -159,20 +161,25 @@ export class Calculator {
     }
   }
 
-  /** 注册skill */
+  /** 注册并格式化skill */
   new(skill: skill): skill[]
-  /** 注册skills */
+  /** 注册并格式化skills */
   new(skills: skill[]): skill[]
   new(skill: skill | skill[]) {
     if (Array.isArray(skill)) {
       skill.forEach(s => this.new(s))
       return this.skills
     }
+    const oriSkill = skill
     skill = _.merge({
       ...this.defaultSkill
     }, skill)
-    if (!skill.element) skill.element = elementType2element(this.avatar.element_type)
+    if (!skill.element) skill.element = oriSkill.element = elementType2element(this.avatar.element_type)
     if (!skill.name || !skill.type) return logger.warn('无效skill：', skill)
+    if (skill.check && +skill.check) {
+      const num = skill.check as unknown as number
+      skill.check = oriSkill.check = ({ avatar }) => avatar.rank >= num
+    }
     this.skills.push(skill)
     return this.skills
   }
@@ -202,14 +209,14 @@ export class Calculator {
       logger.debug('自定义计算最终伤害：', dmg.result)
       return dmg
     }
-    const props = this.props = skill.props || {}
+    const props = this.props = skill.props || Object.create(null)
     /** 缩小筛选范围 */
     const usefulBuffs = this.buffM.filter({
       element: skill.element,
       range: [skill.type],
       redirect: skill.redirect
     }, this)
-    const areas = {} as damage['areas']
+    const areas = Object.create(null) as damage['areas']
     if (skill.before) skill.before({ avatar: this.avatar, calc: this, usefulBuffs, skill, props, areas })
     const isAnomaly = typeof anomalyEnum[skill.type as anomaly] === 'number'
     if (!areas.BasicArea) {
@@ -300,7 +307,7 @@ export class Calculator {
         logger.error('伤害计算错误：', e)
         return
       }
-    }).filter(v => v && v.result?.expectDMG && !v.skill?.isHide)
+    }).filter(v => v && v.result?.expectDMG && !v.skill?.isHide) as damage[]
   }
 
   /**
@@ -386,7 +393,12 @@ export class Calculator {
   calc_value(value: buff['value'], buff?: buff) {
     switch (typeof value) {
       case 'number': return value
-      case 'function': return +value({ avatar: this.avatar, buffM: this.buffM, calc: this }) || 0
+      case 'function': {
+        if (buff) buff.status = false
+        const v = +value({ avatar: this.avatar, buffM: this.buffM, calc: this }) || 0
+        if (buff) buff.status = true
+        return v
+      }
       case 'string': return charData[this.avatar.id].buff?.[value]?.[this.get_SkillLevel(value[0]) - 1] || 0
       case 'object': {
         if (!Array.isArray(value) || !buff) return 0
@@ -402,10 +414,10 @@ export class Calculator {
 
   /**
    * 获取局内属性原始值
-   * @param isRatio 是否支持buff.value为数值类型且<1时按初始数值百分比提高处理
+   * @param isRatio 是否支持buff.value为数值/字符串/数组类型且<1时按初始数值百分比提高处理
    */
   get(type: buff['type'], initial: number, skill: skill, usefulBuffs: buff[] = this.buffM.buffs, isRatio = false): number {
-    return this.props![type] ??= this.buffM._filter(usefulBuffs, {
+    return this.props[type] ??= this.buffM._filter(usefulBuffs, {
       element: skill?.element,
       range: [skill?.type],
       redirect: skill?.redirect,

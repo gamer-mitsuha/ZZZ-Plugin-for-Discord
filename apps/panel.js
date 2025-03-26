@@ -2,7 +2,10 @@ import { ZZZPlugin } from '../lib/plugin.js';
 import {
   getPanelList,
   refreshPanel as refreshPanelFunction,
-  getPanel,
+  getPanelOrigin,
+  updatePanelData,
+  formatPanelData,
+  getPanelListOrigin,
 } from '../lib/avatar.js';
 import settings from '../lib/settings.js';
 import _ from 'lodash';
@@ -17,7 +20,7 @@ export class Panel extends ZZZPlugin {
       priority: _.get(settings.getConfig('priority'), 'panel', 70),
       rule: [
         {
-          reg: `${rulePrefix}(.*)面板(.*)$`,
+          reg: `${rulePrefix}(.*)面板(刷新|更新|列表)?$`,
           fnc: 'handleRule',
         },
         {
@@ -29,13 +32,17 @@ export class Panel extends ZZZPlugin {
           fnc: 'getCharOriImage',
         },
       ],
+      handler: [
+        { key: 'zzz.tool.panel', fn: 'getCharPanelTool' },
+        { key: 'zzz.tool.panelList', fn: 'getCharPanelListTool' },
+      ],
     });
   }
   async handleRule() {
     if (!this.e.msg) return;
-    const reg = new RegExp(`${rulePrefix}(.*)面板(.*)$`);
-    const pre = this.e.msg.match(reg)[4].trim();
-    const suf = this.e.msg.match(reg)[5].trim();
+    const reg = new RegExp(`${rulePrefix}(.*)面板(刷新|更新|列表)?$`);
+    const pre = this.e.msg.match(reg)[4]?.trim();
+    const suf = this.e.msg.match(reg)[5]?.trim();
     if (['刷新', '更新'].includes(pre) || ['刷新', '更新'].includes(suf))
       return await this.refreshPanel();
     if (!pre || suf === '列表') return await this.getCharPanelList();
@@ -95,38 +102,100 @@ export class Panel extends ZZZPlugin {
     };
     await this.render('panel/list.html', finalData);
   }
+
+  async getCharPanelListTool(uid, origin = false) {
+    if (!uid) {
+      return false;
+    }
+    if (origin) {
+      const result = getPanelListOrigin(uid);
+      return result;
+    }
+    const result = getPanelList(uid);
+    return result;
+  }
+
   async getCharPanel() {
     const uid = await this.getUID();
     const reg = new RegExp(`${rulePrefix}(.+)面板$`);
     const match = this.e.msg.match(reg);
     if (!match) return false;
     const name = match[4];
-    const data = getPanel(uid, name);
+    const data = getPanelOrigin(uid, name);
     if (!data) {
       await this.reply(`未找到角色${name}的面板信息，请先刷新面板`);
       return;
     }
+    let handler = this.e.runtime.handler || {};
+
+    if (handler.has('zzz.tool.panel')) {
+      await handler.call('zzz.tool.panel', this.e, {
+        uid,
+        data: data,
+        needSave: false,
+      });
+    }
+    return false;
+  }
+
+  async getCharPanelTool(e, _data = {}) {
+    if (e) this.e = e;
+    if (e?.reply) this.reply = e.reply;
+
+    const {
+      uid = undefined,
+      data = undefined,
+      needSave = true,
+      reply = true,
+      needImg = true
+    } = _data;
+    if (!uid) {
+      await this.reply('UID为空');
+      return false;
+    }
+    if (!data) {
+      await this.reply('数据为空');
+      return false;
+    }
+    if (needSave) {
+      updatePanelData(uid, [data]);
+    }
     const timer = setTimeout(() => {
-      if (this?.reply) {
-        this.reply('查询成功，正在下载图片资源，请稍候。');
+      const msg = '查询成功，正在下载图片资源，请稍候。'
+      if (this?.reply && needImg) {
+        this.reply(msg);
+      } else {
+        logger.mark(msg)
       }
     }, 5000);
-    await data.get_detail_assets();
+    const parsedData = formatPanelData(data);
+    await parsedData.get_detail_assets();
     clearTimeout(timer);
     const finalData = {
-      uid: uid,
-      charData: data,
+      uid,
+      charData: parsedData,
     };
-    const image = await this.render('panel/card.html', finalData, {
+    const image = needImg ? await this.render('panel/card.html', finalData, {
       retType: 'base64',
-    });
-    const res = await this.reply(image);
-    if (res?.message_id && data.role_icon)
-      await redis.set(`ZZZ:PANEL:IMAGE:${res.message_id}`, data.role_icon, {
-        EX: 3600 * 3,
-      });
+    }) : needImg;
 
-    return false;
+    if (reply) {
+      const res = await this.reply(image);
+      if (res?.message_id && parsedData.role_icon)
+        await redis.set(
+          `ZZZ:PANEL:IMAGE:${res.message_id}`,
+          parsedData.role_icon,
+          {
+            EX: 3600 * 3,
+          }
+        );
+      return {
+        message: res,
+        image,
+      };
+    }
+
+    return image;
   }
   async proficiency() {
     const uid = await this.getUID();

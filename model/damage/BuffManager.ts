@@ -49,7 +49,7 @@ export interface buff {
   /** Buff状态，true生效，false无效 */
   status: boolean
   /** Buff是否常驻 */
-  isForever: boolean
+  isForever?: boolean
   /** Buff名称 */
   name: string
   /** Buff来源 */
@@ -80,7 +80,7 @@ export interface buff {
    * - 当技能参数不存在**redirect**时，**range**作用范围向后覆盖
    * - 当技能参数存在**redirect**时，**range**须全匹配，**redirect**向后覆盖
    */
-  range?: string[] | anomaly[]
+  range?: string[] | anomaly[] | "追加攻击"[]
   /** 
    * Buff增益技能类型**生效技能**
    * - 不同于**range**，仅全匹配时该值生效，不会向后覆盖
@@ -110,8 +110,18 @@ export interface buff {
     buffM: BuffManager
     calc: Calculator
   }) => boolean) | number
+  /** Buff描述符 */
+  is: {
+    /** 是否常驻 @default false*/
+    forever?: boolean
+    /** 是否团队增益 @default false */
+    team?: boolean
+    /** buff为团队增益时，同类效果是否可叠加 @default false */
+    stack?: boolean
+  }
 }
 
+type filterable = 'name' | 'element' | 'type' | 'range' | 'source'
 let depth = 0, weakMapCheck = new WeakMap<buff, boolean>()
 /**
  * Buff管理器
@@ -121,16 +131,16 @@ export class BuffManager {
   readonly avatar: ZZZAvatarInfo
   readonly buffs: buff[] = []
   /** 套装计数 */
-  setCount: { [name: string]: number } = {}
-  defaultBuff: { [key in keyof buff]?: buff[key] } = {}
+  setCount: { [name: string]: number } = Object.create(null)
+  defaultBuff: { [key in keyof buff]?: buff[key] } = Object.create(null)
 
   constructor(avatar: ZZZAvatarInfo) {
     this.avatar = avatar
   }
 
-  /** 注册buff */
+  /** 注册并格式化buff */
   new(buff: buff): buff[]
-  /** 注册buffs */
+  /** 注册并格式化buffs */
   new(buffs: buff[]): buff[]
   new(buff: buff | buff[]) {
     if (Array.isArray(buff)) {
@@ -140,16 +150,22 @@ export class BuffManager {
     // 简化参数
     if (!buff.name && (buff.source || this.defaultBuff.source) === 'Set' && this.defaultBuff.name && typeof buff.check === 'number')
       buff.name = this.defaultBuff.name + buff.check
+    const oriBuff = buff
     buff = _.merge({
       status: true,
       isForever: false,
+      is: Object.create(null),
       ...this.defaultBuff
     }, buff)
+    if (buff.isForever)
+      buff.is.forever = true
+    if (buff.range && !Array.isArray(buff.range))
+      buff.range = oriBuff.range = [buff.range]
     if (!buff.source) {
-      if (buff.name.includes('核心') || buff.name.includes('天赋')) buff.source = 'Talent'
-      else if (buff.name.includes('额外能力')) buff.source = 'Addition'
-      else if (buff.name.includes('影')) buff.source = 'Rank'
-      else if (buff.name.includes('技')) buff.source = 'Skill'
+      if (buff.name.includes('核心') || buff.name.includes('天赋')) buff.source = oriBuff.source = 'Talent'
+      else if (buff.name.includes('额外能力')) buff.source = oriBuff.source = 'Addition'
+      else if (buff.name.includes('影')) buff.source = oriBuff.source = 'Rank'
+      else if (buff.name.includes('技')) buff.source = oriBuff.source = 'Skill'
     }
     if (!buff.name || !buff.value || !buff.source || !buffTypeEnum[buffTypeEnum[buff.type]])
       return logger.warn('无效buff：', buff)
@@ -162,21 +178,22 @@ export class BuffManager {
       }
       const oriCheck = typeof buff.check === 'function' && buff.check
       buff.check = ({ avatar, buffM, calc }) => professionCheck(avatar) && (!oriCheck || oriCheck({ avatar, buffM, calc }))
+      // 影画buff影画数检查
     } else if (buff.source === 'Rank') {
-      buff.check ??= +buff.name.match(/\d/)!?.[0]
+      buff.check ??= oriBuff.check = +buff.name.match(/\d/)!?.[0]
     }
     this.buffs.push(buff)
     return this.buffs
   }
 
-  _filter<T extends keyof buff>(buffs: buff[], type: T, value: buff[T]): buff[]
-  _filter(buffs: buff[], obj: { [key in Exclude<keyof buff, 'status' | 'check' | 'element' | 'include' | 'exclude'>]?: buff[key] } & { element: element, redirect?: skill['type'] }, calc?: Calculator): buff[]
+  _filter<T extends filterable>(buffs: buff[], type: T, value: buff[T]): buff[]
+  _filter(buffs: buff[], obj: Partial<Pick<buff, filterable>> & { element: element, redirect?: skill['redirect'] }, calc?: Calculator): buff[]
   _filter(buffs: buff[], fnc: (buff: buff, index: number) => boolean): buff[]
-  _filter<T extends keyof buff>(
+  _filter<T extends filterable>(
     buffs: buff[],
     param:
       | T
-      | ({ [key in Exclude<keyof buff, 'status' | 'check' | 'element' | 'include' | 'exclude'>]?: buff[key] } & { element: element, redirect?: skill['type'] })
+      | (Partial<Pick<buff, filterable>> & { element: element, redirect?: skill['redirect'] })
       | ((buff: buff, index: number) => boolean),
     valueOcalc?: buff[T] | Calculator
   ) {
@@ -206,7 +223,8 @@ export class BuffManager {
               // 存在重定向时，range须全匹配，redirect向后覆盖
               else if (param.redirect) {
                 if (skillRange.some(ST => buffRange.some(BT => BT === ST))) return true
-                if (buffRange.some(BT => param.redirect!.startsWith(BT))) return true
+                const redirect = Array.isArray(param.redirect) ? param.redirect : [param.redirect]
+                if (buffRange.some(BT => redirect.some(RT => RT.startsWith(BT)))) return true
                 return false
               }
               // 不存在重定向时，range向后覆盖
@@ -268,22 +286,22 @@ export class BuffManager {
   /**
    * 根据单个指定属性筛选buff，不作进一步判断
    */
-  filter<T extends keyof buff>(type: T, value: buff[T]): buff[]
+  filter<T extends filterable>(type: T, value: buff[T]): buff[]
   /**
    * 根据多个指定属性筛选 **启用状态** 的buff
    * - 对伤害类型range数组的筛选，只要其中有一个符合即认为满足
    * - 存在重定向时，range须全匹配，redirect向后覆盖
    * - 不存在重定向时，range向后覆盖
    */
-  filter(obj: { [key in Exclude<keyof buff, 'status' | 'check' | 'element' | 'include' | 'exclude'>]?: buff[key] } & { element: element, redirect?: skill['type'] }, calc?: Calculator): buff[]
+  filter(obj: Partial<Pick<buff, filterable>> & { element: element, redirect?: skill['redirect'] }, calc?: Calculator): buff[]
   /**
    * 根据指定函数筛选buff
    */
   filter(fnc: (buff: buff, index: number) => boolean): buff[]
-  filter<T extends keyof buff>(
+  filter<T extends filterable>(
     param:
       | T
-      | ({ [key in Exclude<keyof buff, 'status' | 'check' | 'element' | 'include' | 'exclude'>]?: buff[key] } & { element: element, redirect?: skill['type'] })
+      | (Partial<Pick<buff, filterable>> & { element: element, redirect?: skill['redirect'] })
       | ((buff: buff, index: number) => boolean),
     valueOcalc?: buff[T] | Calculator
   ) {

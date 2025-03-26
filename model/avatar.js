@@ -9,7 +9,7 @@ import { Equip, Weapon } from './equip.js';
 import { Property } from './property.js';
 import { Skill } from './skill.js';
 import { avatar_ability } from './damage/avatar.js';
-import { hasScoreData } from '../lib/score.js';
+import { hasScoreData, scoreData } from '../lib/score.js';
 
 import _ from 'lodash';
 import fs from 'fs';
@@ -368,25 +368,25 @@ export class ZZZAvatarInfo {
 
   /** @type {'C'|'B'|'A'|'S'|'SS'|'SSS'|'ACE'|false} */
   get equip_comment() {
-    if (this.equip_score < 45) {
+    if (this.equip_score < 80) {
       return 'C';
     }
-    if (this.equip_score <= 80) {
+    if (this.equip_score < 120) {
       return 'B';
     }
-    if (this.equip_score <= 115) {
+    if (this.equip_score < 160) {
       return 'A';
     }
-    if (this.equip_score <= 150) {
+    if (this.equip_score < 180) {
       return 'S';
     }
-    if (this.equip_score <= 185) {
+    if (this.equip_score < 200) {
       return 'SS';
     }
-    if (this.equip_score <= 220) {
+    if (this.equip_score < 220) {
       return 'SSS';
     }
-    if (this.equip_score > 220) {
+    if (this.equip_score >= 220) {
       return 'ACE';
     }
     return false;
@@ -431,6 +431,15 @@ export class ZZZAvatarInfo {
       }
     });
     return result;
+  }
+
+  /** 面板属性label效果 */
+  get_label(propID) {
+    const base = scoreData[this.id][propID];
+    if (!base) return '';
+    return base === 1 ? 'yellow' :
+      base >= 0.75 ? 'blue' :
+        base >= 0.5 ? 'white' : '';
   }
 
   /**
